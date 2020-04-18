@@ -1,5 +1,6 @@
 /* CPU Implementation of the Naive Bayes Classifier */
 #include "./include/nb.hpp"
+#define DEBUG 0 
 
 int main(int argc, char **argv)
 {
@@ -81,6 +82,34 @@ int main(int argc, char **argv)
 	outfile.close();
 
 	std::cout << "Predictions can be found in " << output_filename << std::endl;
+
+
+	/*
+	*******************
+	       DEBUG
+	*******************
+	*/
+	#if DEBUG
+
+	std::ofstream debugfile("prob_matrix.txt");
+
+	for(int c_idx = 0; c_idx < classes_vec.size(); c_idx++)
+		debugfile << classes_vec[c_idx] << " ";
+	debugfile << std::endl << std::endl;
+
+	for(int t_idx = 0; t_idx < term_vec.size(); t_idx++)
+	{
+		std::string term = term_vec[t_idx];
+		debugfile << term << "\t\t\t";
+		for(int c_idx = 0; c_idx < classes_vec.size(); c_idx++ )
+		{
+			float prob = *(prob_matrix + (t_idx * classes_vec.size()) + c_idx);
+			debugfile << prob << " ";
+		}
+		debugfile << std::endl;
+	}
+	debugfile.close();
+	#endif
 
 }
 
