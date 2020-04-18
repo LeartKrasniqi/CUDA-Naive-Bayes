@@ -112,17 +112,9 @@ float * learn(std::vector<std::string> &term_vec, std::vector<std::string> &clas
 			float curr_total_terms = (float)class_info_map[curr_class][1];
 
 			float log_prob = log_term_categ_prob(curr_freq, curr_total_terms);
-			//float log_prob = log10(curr_freq + 1); 
 
 			*(prob_matrix + (t_idx * classes_vec.size()) + c_idx) = log_prob;
 
-			// std::cout << "Term: " << curr_term << std::endl;
-			// std::cout << "Class: " << curr_class << std::endl;
-			// std::cout << "curr_freq: " << curr_freq << std::endl;
-			// std::cout << "curr_total_terms: " << curr_total_terms << std::endl;
-			// std::cout << "log_prob: " << log_prob << std::endl << std::endl;  
-			// if(t_idx == 4)
-			// 	exit(0);
 		}
 	}
 
@@ -139,7 +131,6 @@ std::vector<int> test(std::string filename, int &num_training_docs, float *prob_
 	/* Loop through each document */
 	std::ifstream file(filename);
 	std::string line;
-	//int flag = 0;
 	while (std::getline(file, line)) 
 	{
 		/* 
@@ -150,7 +141,6 @@ std::vector<int> test(std::string filename, int &num_training_docs, float *prob_
 			We want to ignore the doc_class (otherwise this wouldn't be much of a project) 
 		*/
 		std::vector<std::string> doc_terms = tokenize(line);
-		//int vocab_size = doc_terms.size() - 1;
 
 		/* Create a map that counts how many times we have seen a specific term */
 		std::map<std::string, int> term_count;
@@ -174,7 +164,6 @@ std::vector<int> test(std::string filename, int &num_training_docs, float *prob_
         {
         	/* Get priors */
         	float categ_freq = (float)class_info_map[classes_vec[i]][0];
-        	//std::cout << "Class: " << classes_vec[i] << "    categ_freq: " << categ_freq << "    num_training_docs: " << num_training_docs << std::endl;
         	float log_prior = log_prior_prob(categ_freq, (float)num_training_docs);
 
         	/* For each term, multiply the term count by the logprob in the prob matrix */
@@ -193,13 +182,10 @@ std::vector<int> test(std::string filename, int &num_training_docs, float *prob_
             		int t_idx = term_it - term_vec.begin();
             		int c_idx = i;
             		float log_prob = *(prob_matrix + (t_idx * classes_vec.size()) + c_idx);
-            		//std::string curr_class = classes_vec[c_idx];
-            		//log_prob -= log(class_info_map[curr_class][1] - vocab_size);
 
             		log_class_prob += (log_prob * count); 
             	}
 
-            	//std::cout << "Class: " << classes_vec[i] << "    log_prior: " << log_prior << "   log_class_prob: " << log_class_prob << std::endl;
 
 			}
 
@@ -217,10 +203,6 @@ std::vector<int> test(std::string filename, int &num_training_docs, float *prob_
 
         results.push_back(max_idx);
 
-        // flag++;
-
-        // if(flag == 5)
-        // 	exit(0);
 	}
 
 	return results;
