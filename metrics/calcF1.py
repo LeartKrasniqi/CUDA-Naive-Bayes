@@ -48,10 +48,6 @@ if len(class_lines) != len(true_lines):
 	print("Error: Input files do not have same amount of results!")
 	exit(-1)
 
-num_results = len(class_lines)
-
-num_correct = 0
-
 # Populate the classes_dict with relevant info
 for class_line, true_line in zip(class_lines, true_lines):
 	if class_line == true_line:
