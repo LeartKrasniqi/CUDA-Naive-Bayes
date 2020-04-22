@@ -1,6 +1,11 @@
 /* CPU Implementation of the Naive Bayes Classifier */
 #include "./include/nb.hpp"
-#define DEBUG 0 
+#include <chrono>
+#define DEBUG 0
+#define timeNow() std::chrono::high_resolution_clock::now()
+#define duration(start, stop) std::chrono::duration_cast<std::chrono::seconds>(stop - start).count()
+
+typedef std::chrono::high_resolution_clock::time_point TimeVar;    
 
 int main(int argc, char **argv)
 {
@@ -13,6 +18,7 @@ int main(int argc, char **argv)
 	std::string train_filename = argv[1]; 
 	std::string test_filename = argv[2];
 	std::string output_filename = argv[3];
+
 
 
 	/*
@@ -39,9 +45,14 @@ int main(int argc, char **argv)
 	*/
 	std::map<std::string, std::vector<int> > class_info_map;  
 
-	std::cerr << "Started training" << std::endl;
+	std::cerr << "Started training... ";
+	TimeVar train_start = timeNow();
+
 	/* Perform the training (which will update all the vectors) */
 	train(train_filename, num_training_docs, term_vec, classes_vec, term_class_freq_map, class_info_map);
+	
+	TimeVar train_stop = timeNow();
+	std::cerr << "Done (" << duration(train_start, train_stop) << " s)" << std::endl;
 
 
 
@@ -51,9 +62,12 @@ int main(int argc, char **argv)
 	**********************
 	*/
 	/* Populate a prob matrix using the vectors with training statistics */
-	std::cerr << "Started Learning" << std::endl;
+	std::cerr << "Started Learning... ";
+	TimeVar learn_start = timeNow();
 	float *prob_matrix = learn(term_vec, classes_vec, term_class_freq_map, class_info_map);
-
+	TimeVar learn_stop = timeNow();
+	std::cerr << "Done (" << std::chrono::duration_cast<std::chrono::milliseconds>(learn_stop - learn_start).count() << " ms)" << std::endl;
+	
 
 
 	/*
@@ -61,8 +75,11 @@ int main(int argc, char **argv)
 	       Testing
 	*********************
 	*/
-	std::cerr << "Started Testing" << std::endl;
+	std::cerr << "Started Testing... "; 
+	TimeVar test_start = timeNow();
 	std::vector<int> results = test(test_filename, num_training_docs, prob_matrix, term_vec, classes_vec, class_info_map);
+	TimeVar test_stop = timeNow();
+	std::cerr << "Done (" << duration(test_start, test_stop) << " s)" << std::endl;
 
 
 
@@ -81,7 +98,8 @@ int main(int argc, char **argv)
 
 	outfile.close();
 
-	std::cout << "Predictions can be found in " << output_filename << std::endl;
+	std::cout << "\nPredictions can be found in " << output_filename << std::endl;
+
 
 
 	/*
