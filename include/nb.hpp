@@ -7,6 +7,8 @@
 #include <sstream>
 #include <cmath>
 #include <algorithm>
+#include <iterator>
+#include <omp.h>
 
 
 /* Splits string into tokens */

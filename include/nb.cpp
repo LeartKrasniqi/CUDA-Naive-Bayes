@@ -1,5 +1,6 @@
 /* Definition of Naive Bayes helper functions */
 #include "./nb.hpp"
+#define NTHREADS 4 
 
 /* Tokenize string */
 std::vector<std::string> tokenize(std::string s)
@@ -101,6 +102,7 @@ float * learn(std::vector<std::string> &term_vec, std::vector<std::string> &clas
 	}
 
 	/* Populate the matrix with the term and class info */
+	#pragma omp parallel for num_threads(NTHREADS)
 	for(int t_idx = 0; t_idx < term_vec.size(); t_idx++)
 	{
 		std::string curr_term = term_vec[t_idx];
