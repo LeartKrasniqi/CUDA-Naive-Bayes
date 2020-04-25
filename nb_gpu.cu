@@ -6,6 +6,76 @@
 #include <sstream>
 
 
+/*
+ * Fills in the matrix term_class_matrix based on the frequency of terms. The term_index_arr
+ * holds the indices for the doc_term_arr where each term starts. Increment frequency of
+ * term_class_matrix for the class and term by looping through all docs with that term.
+ * The doc_class array is used to hold the class of each doc
+ */
+__global__ void calcFreq(int *term_index_arr, int *doc_term_arr, int *doc_class, float *term_class_matrix,
+							int num_terms, int num_docs, int classes) {
+	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
+                      blockDim.x + blockIdx.y * gridDim.z *
+                      blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
+	int start = term_index_arr[i];
+	if(i < num_terms - 1) {
+		int end = term_index_arr[i+1];
+	} else {
+		int end = num_docs - 1;
+	}
+
+	for (int x = start; x < end; x++) {
+		term_class_matrix[classes * i + doc_class[doc_term_arr[x] - 1]] += 1.0;
+	}
+}
+
+/*
+ * Calculates total number of terms per class and places into an array. Parallelized
+ * based on class
+ */
+__global__ void calcTotalTermsPerClass(float * term_class_matrix, int * terms_per_class, int num_terms, int classes) {
+	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
+                      blockDim.x + blockIdx.y * gridDim.z *
+                      blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
+	int sum = 0;
+	for (int x = 0; x < num_terms; x++) {
+		sum += term_class_matrix[classes * x + i];
+	}
+	terms_per_class[i] = sum;
+}
+
+
+/*
+ * Goes through each term and divides the term frequency in the class by the total
+ * terms in that class. Parallelized based on terms
+ */
+__global__ void learn(float * term_class_matrix, int num_docs, int classes, int * terms_per_class) {
+	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
+                      blockDim.x + blockIdx.y * gridDim.z *
+                      blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
+	for (int x = 0; x < classes; x++) {
+		term_class_matrix[classes * i + x] /= terms_per_class[x];
+	}
+}
+
+__global__ void test(float *term_class_matrix, float * doc_prob, int * term_index_arr, int * terms_in_doc, int classes, int num_docs, int total_len_terms) {
+	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
+                      blockDim.x + blockIdx.y * gridDim.z *
+                      blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
+	int start_term = term_index_arr[i];
+	if(i < num_docs) {
+		int end_term = term_index_arr[i+1];
+	} else {
+		int end_term = total_len_terms - 1;
+	}
+	for (int x = start_term; x < end_term; x++) {
+		for (int y = 0; y < classes; y++) {
+			doc_prob[classes * i + y] += term_class_matrix[classes * x + y]
+		}
+	}
+
+}
+
 /* Function to convert vector of ints into array of ints */
 int * vecToArr(std::vector<int> v)
 {
@@ -37,8 +107,8 @@ int main(int argc, char **argv)
 	/* Map of term to document list, to make sure no duplicate documents are added to list */
 	std::map<std::string, std::vector<int> > term_doc_map;
 
-	/* 
-		Vector of terms.  
+	/*
+		Vector of terms.
 		Each index represents the term.
 		The value at that index represents the index in doc_term that holds list of documents for the term
 		Note: Will be converted to array later (to be used in kernel function)
@@ -46,12 +116,14 @@ int main(int argc, char **argv)
 	std::vector<int> term_index_vec;
 
 
-	/* 
+	/*
 		Vector of documents.
 		Each value represents the doc_number that the term has appeared in
 		Note: Will be converted to array later (to be used in kernel function)
 	*/
 	std::vector<int> doc_term_vec;
+
+	std::vector<int> doc_class;
 
 	/* Vector to hold all the classes */
 	std::vector<std::string> classes_vec;
@@ -59,11 +131,11 @@ int main(int argc, char **argv)
 	/* Loop through each document */
 	std::ifstream file(argv[1]);
 	std::string line;
-	int lineno = 0; 
-	while (std::getline(file, line)) 
+	int lineno = 0;
+	while (std::getline(file, line))
 	{
-		/* 
-			Split string 
+		/*
+			Split string
 			doc_split[0] = doc_class
 			doc_split[1 -> end] = terms in doc
 		*/
@@ -76,6 +148,8 @@ int main(int argc, char **argv)
 		std::vector<std::string>::iterator class_it = std::find(classes_vec.begin(), classes_vec.end(), doc_split[0]);
         if(class_it == classes_vec.end())
             classes_vec.push_back(doc_split[0]);
+
+		doc_class.push_back(find(classes_vec.begin(), classes_vec.end(), doc_split[0]) - classes_vec.begin());
 
         /* Loop through each term in the document */
         for(int i = 1; i < doc_split.size(); i++)
@@ -123,10 +197,11 @@ int main(int argc, char **argv)
 	float *term_class_matrix = (float *)calloc( (term_vec.size()) * (classes_vec.size()), sizeof(float) );
 
 	
+
 	/* Testing stuff */
 	// std::cout << "There are " << term_vec.size() << " terms." << std::endl;
 	// std::cout << "There are " << lineno << " docs." << std::endl;
 	// std::cout << "There are " << classes_vec.size() << " classes." << std::endl;
 
 
-}	
+}
