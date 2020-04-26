@@ -306,7 +306,7 @@ int main(int argc, char **argv)
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class);
 
-
+	
 
 
 
