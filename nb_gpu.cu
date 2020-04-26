@@ -13,15 +13,17 @@
  * The doc_class array is used to hold the class of each doc
  */
 __global__ void calcFreq(int *term_index_arr, int *doc_term_arr, int *doc_class, float *term_class_matrix,
-							int num_terms, int num_docs, int classes) {
+							int num_terms, int doc_term_len, int classes) {
 	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
 	int start = term_index_arr[i];
 	if(i < num_terms - 1) {
 		int end = term_index_arr[i+1];
+	} else if (i == num_terms - 1){
+		int end = doc_term_len - 1;
 	} else {
-		int end = num_docs - 1;
+		return ;
 	}
 
 	for (int x = start; x < end; x++) {
@@ -74,6 +76,56 @@ __global__ void test(float *term_class_matrix, float * doc_prob, int * term_inde
 		}
 	}
 
+}
+
+void errorCheck(cudaError_t err) {
+	if (err) {
+		fprintf(stderr, "CUDA error: %d\n", err);
+		exit(err);
+	}
+}
+
+static cudaError_t numBlocksThreads(unsigned int N, dim3 *numBlocks, dim3 *threadsPerBlock) {
+    unsigned int BLOCKSIZE = 128;
+    int Nx, Ny, Nz;
+    int device;
+    cudaError_t err;
+    if(N < BLOCKSIZE) {
+        numBlocks->x = 1;
+        numBlocks->y = 1;
+        numBlocks->z = 1;
+        threadsPerBlock->x = N;
+        threadsPerBlock->y = 1;
+        threadsPerBlock->z = 1;
+        return cudaSuccess;
+    }
+    threadsPerBlock->x = BLOCKSIZE;
+    threadsPerBlock->y = 1;
+    threadsPerBlock->z = 1;
+    err = cudaGetDevice(&device);
+    if(err)
+      return err;
+    err = cudaDeviceGetAttribute(&Nx, cudaDevAttrMaxBlockDimX, device);
+    if(err)
+      return err;
+    err = cudaDeviceGetAttribute(&Ny, cudaDevAttrMaxBlockDimY, device);
+    if(err)
+      return err;
+    err = cudaDeviceGetAttribute(&Nz, cudaDevAttrMaxBlockDimZ, device);
+    if(err)
+      return err;
+    unsigned int n = (N-1) / BLOCKSIZE + 1;
+    unsigned int x = (n-1) / (Ny*Nz) + 1;
+    unsigned int y = (n-1) / (x*Nz) + 1;
+    unsigned int z = (n-1) / (x*y) + 1;
+    if(x > Nx || y > Ny || z > Nz) {
+        return cudaErrorInvalidConfiguration;
+    }
+    numBlocks->x = x;
+    numBlocks->y = y;
+    numBlocks->z = z;
+
+    return cudaSuccess;
 }
 
 /* Function to convert vector of ints into array of ints */
@@ -192,11 +244,72 @@ int main(int argc, char **argv)
 	/* Convert the vectors to arrays for GPU processing */
 	int *term_index_arr = vecToArr(term_index_vec);
 	int *doc_term_arr = vecToArr(doc_term_vec);
+	int *doc_class_arr = vecToArr(doc_class);
 
 	/* Create a TxC matrix (i.e. # of Terms x # of Classes) which will hold the frequencies of each term */
 	float *term_class_matrix = (float *)calloc( (term_vec.size()) * (classes_vec.size()), sizeof(float) );
 
-	
+	/* Create a C length array holding the total terms in each class*/
+	int *total_terms_class_arr = (int *)calloc( classes_vec.size(), sizeof(int));
+
+	size_t nSpatial;
+	size_t mSpatial;
+	dim3 spatialThreadsPerBlock, spatialBlocks;
+
+	float *d_term_class;
+	int *d_term_index;
+	int *d_doc_term;
+	int *d_doc_class;
+	int *d_total_terms_class;
+
+	cudaDeviceReset();
+    cudaProfilerStart();
+
+	nSpatial = term_index_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_term_index, mSpatial));
+	errorCheck(cudaMemcpy(d_term_index, term_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	nSpatial = doc_term_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_doc_term, mSpatial));
+	errorCheck(cudaMemcpy(d_doc_term, doc_term_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	nSpatial = doc_class.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_doc_class, mSpatial));
+	errorCheck(cudaMemcpy(d_doc_class, doc_class_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	nSpatial = term_vec.size() * classes_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(float);
+	errorCheck(cudaMalloc(&d_term_class, mSpatial));
+	errorCheck(cudaMemcpy(d_term_class, term_class_matrix, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
+
+
+
+	// Learn
+	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term.size(), classes_vec.size());
+
+	nSpatial = classes_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_total_terms_class, mSpatial));
+	errorCheck(cudaMemcpy(d_total_terms_class, total_terms_class_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
+
+	nSpatial = terms_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class);
+
+
+
+
+
 
 	/* Testing stuff */
 	// std::cout << "There are " << term_vec.size() << " terms." << std::endl;
