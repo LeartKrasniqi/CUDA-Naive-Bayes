@@ -11,10 +11,10 @@ CXXFLAGS = -std=c++0x -fopenmp
 CFLAGS = -Wall -Wextra
 
 np_gpu.out: np_gpu.o
-	$(CC) -o np_gpu.out np_gpu.o -L$(NVCC_LIB) -lcudart
+	$(CC) $(CXXFLAGS) -o np_gpu.out np_gpu.o -L$(NVCC_LIB) -lcudart
 
 np_gpu.o: ./nb_gpu.cu
-	$(NVCC) -I. -I$(INCLUDES) $(CXXFLAGS) -c ./nb_gpu.cu
+	$(NVCC) -I. -I$(INCLUDES) -c ./nb_gpu.cu
 
 nb_cpu.out: nb_cpu.o nb.o
 	$(CXX) -o nb_cpu.out nb_cpu.o nb.o $(CXXFLAGS)
