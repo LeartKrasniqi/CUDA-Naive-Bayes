@@ -18,10 +18,11 @@ __global__ void calcFreq(int *term_index_arr, int *doc_term_arr, int *doc_class,
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
 	int start = term_index_arr[i];
+	int end = term_index_arr[i];
 	if(i < num_terms - 1) {
-		int end = term_index_arr[i+1];
+		end = term_index_arr[i+1];
 	} else if (i == num_terms - 1){
-		int end = doc_term_len - 1;
+		end = doc_term_len - 1;
 	} else {
 		return ;
 	}
@@ -65,14 +66,15 @@ __global__ void test(float *term_class_matrix, float * doc_prob, int * term_inde
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
 	int start_term = term_index_arr[i];
+	int end_term = term_index_arr[i];
 	if(i < num_docs) {
-		int end_term = term_index_arr[i+1];
+		end_term = term_index_arr[i+1];
 	} else {
-		int end_term = total_len_terms - 1;
+		end_term = total_len_terms - 1;
 	}
 	for (int x = start_term; x < end_term; x++) {
 		for (int y = 0; y < classes; y++) {
-			doc_prob[classes * i + y] += term_class_matrix[classes * x + y]
+			doc_prob[classes * i + y] += term_class_matrix[classes * x + y];
 		}
 	}
 
@@ -292,7 +294,7 @@ int main(int argc, char **argv)
 
 
 	// Learn
-	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term.size(), classes_vec.size());
+	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), term_vec.size(), classes_vec.size());
 
 	nSpatial = classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
@@ -302,11 +304,11 @@ int main(int argc, char **argv)
 
 	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
 
-	nSpatial = terms_vec.size();
+	nSpatial = term_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class);
 
-	
+
 
 
 
