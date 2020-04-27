@@ -4,7 +4,7 @@
 #include <map>
 #include <string>
 #include <sstream>
-
+#include <iterator>
 
 /*
  * Fills in the matrix term_class_matrix based on the frequency of terms. The term_index_arr
