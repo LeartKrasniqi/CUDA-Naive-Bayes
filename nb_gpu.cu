@@ -6,7 +6,7 @@
 #include <sstream>
 #include <iterator>
 #include <algorithm>
-
+#include <cuda_profiler_api.h>
 /*
  * Fills in the matrix term_class_matrix based on the frequency of terms. The term_index_arr
  * holds the indices for the doc_term_arr where each term starts. Increment frequency of
