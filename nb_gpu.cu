@@ -41,11 +41,13 @@ __global__ void calcTotalTermsPerClass(float * term_class_matrix, int * terms_pe
 	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
-	int sum = 0;
-	for (int x = 0; x < num_terms; x++) {
-		sum += term_class_matrix[classes * x + i];
+	if (i < classes) {
+		int sum = 0;
+		for (int x = 0; x < num_terms; x++) {
+			sum += term_class_matrix[classes * x + i];
+		}
+		terms_per_class[i] = sum;
 	}
-	terms_per_class[i] = sum;
 }
 
 
@@ -53,25 +55,29 @@ __global__ void calcTotalTermsPerClass(float * term_class_matrix, int * terms_pe
  * Goes through each term and divides the term frequency in the class by the total
  * terms in that class. Parallelized based on terms
  */
-__global__ void learn(float * term_class_matrix, int num_docs, int classes, int * terms_per_class) {
+__global__ void learn(float * term_class_matrix, int num_docs, int classes, int * terms_per_class, int num_terms) {
 	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
-	for (int x = 0; x < classes; x++) {
-		term_class_matrix[classes * i + x] /= terms_per_class[x];
+	if (i < num_terms) {
+		for (int x = 0; x < classes; x++) {
+			term_class_matrix[classes * i + x] /= terms_per_class[x];
+		}
 	}
 }
 
-__global__ void test(float *term_class_matrix, float * doc_prob, int * term_index_arr, int * terms_in_doc, int classes, int num_docs, int total_len_terms) {
+__global__ void test(float *term_class_matrix, float * doc_prob, int * doc_index, int * terms_in_doc, int classes, int num_docs, int total_len_terms) {
 	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
-	int start_term = term_index_arr[i];
-	int end_term = term_index_arr[i];
-	if(i < num_docs) {
-		end_term = term_index_arr[i+1];
-	} else {
+	int start_term = doc_index[i];
+	int end_term = doc_indexi];
+	if(i < num_docs - 1) {
+		end_term = doc_index[i+1];
+	} else if (i == num_docs - 1) {
 		end_term = total_len_terms - 1;
+	} else {
+		return ;
 	}
 	for (int x = start_term; x < end_term; x++) {
 		for (int y = 0; y < classes; y++) {
@@ -244,6 +250,41 @@ int main(int argc, char **argv)
 
 	}
 
+	std::ifstream test_file(argv[2]);
+	/*
+		Vector of Test documents.
+		Each index represents a test document.
+		The value at that index represents the index in test_term_doc_vec that holds list of terms for that documents
+		Note: Will be converted to array later (to be used in kernel function)
+	*/
+	std::vector<int> test_doc_index_vec;
+
+	/*
+		Vector of valid test document terms.
+		Each value represents the term_number that is valid and appears in the document
+		Note: Will be converted to array later (to be used in kernel function)
+	*/
+	std::vector<int> test_term_doc_vec;
+
+	while (std::getline(test_file, line)) {
+		std::istringstream iss(line);
+		std::vector<std::string> doc_split((std::istream_iterator<std::string>(iss)), std::istream_iterator<std::string>());
+
+		std::vector<int> test_doc_terms;
+		for(int i = 0; i < doc_split.size(); i++) {
+			std::string term = doc_split[i];
+			std::vector<std::string>::iterator term_it = std::find(term_vec.begin(), term_vec.end(), term);
+			if (term_it != term_vec.end()) {
+				test_doc_terms.push_back(term_it - term_vec.begin());
+			} else {
+				continue;
+			}
+		}
+
+		test_doc_index_vec.push_back(test_term_doc_vec.size());
+		test_term_doc_vec.insert(test_term_doc_vec.end(), test_doc_terms.begin(), test_doc_terms.end());
+	}
+
 	/* Convert the vectors to arrays for GPU processing */
 	int *term_index_arr = vecToArr(term_index_vec);
 	int *doc_term_arr = vecToArr(doc_term_vec);
@@ -307,12 +348,42 @@ int main(int argc, char **argv)
 
 	nSpatial = term_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class);
+	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
+
+	// Test
+	int *test_doc_index_arr = vecToArr(test_doc_index_vec);
+	int *test_term_doc_arr = vecToArr(test_term_doc_vec);
+
+	float *test_doc_prob = (float *)calloc( (test_doc_index_vec.size()) * (classes_vec.size()), sizeof(float) );
+	float *d_test_doc_prob;
+
+	int *d_test_doc_index;
+	int *d_test_term_doc;
 
 
+	nSpatial = test_doc_index_vec.size() * classes_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(float);
+	errorCheck(cudaMalloc(&d_test_doc_prob, mSpatial));
+	errorCheck(cudaMemcpy(d_test_doc_prob, test_doc_prob, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
 
+	nSpatial = test_term_doc_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_test_term_doc, mSpatial));
+	errorCheck(cudaMemcpy(d_test_term_doc, test_term_doc_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
 
+	nSpatial = test_doc_index_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_test_doc_index, mSpatial));
+	errorCheck(cudaMemcpy(d_test_doc_index, test_doc_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
 
+	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size());
+
+	nSpatial = test_doc_index_vec.size() * classes_vec.size();
+	errorCheck(cudaMemcpy(test_doc_prob, d_test_doc_prob, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
+	std::std::cerr << test_doc_prob[0] << '\n';
 
 	/* Testing stuff */
 	// std::cout << "There are " << term_vec.size() << " terms." << std::endl;
