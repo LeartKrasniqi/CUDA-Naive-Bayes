@@ -71,7 +71,7 @@ __global__ void test(float *term_class_matrix, float * doc_prob, int * doc_index
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
 	int start_term = doc_index[i];
-	int end_term = doc_indexi];
+	int end_term = doc_index[i];
 	if(i < num_docs - 1) {
 		end_term = doc_index[i+1];
 	} else if (i == num_docs - 1) {
@@ -383,7 +383,7 @@ int main(int argc, char **argv)
 
 	nSpatial = test_doc_index_vec.size() * classes_vec.size();
 	errorCheck(cudaMemcpy(test_doc_prob, d_test_doc_prob, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
-	std::std::cerr << test_doc_prob[0] << '\n';
+	std::cerr << test_doc_prob[0] << '\n';
 
 	/* Testing stuff */
 	// std::cout << "There are " << term_vec.size() << " terms." << std::endl;
