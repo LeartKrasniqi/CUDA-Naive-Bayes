@@ -336,7 +336,7 @@ int main(int argc, char **argv)
 
 
 	// Learn
-	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), term_vec.size(), classes_vec.size());
+	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term_vec.size(), classes_vec.size());
 
 	nSpatial = classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
@@ -382,7 +382,7 @@ int main(int argc, char **argv)
 	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size());
 
 	nSpatial = test_doc_index_vec.size() * classes_vec.size();
-	errorCheck(cudaMemcpy(test_doc_prob, d_test_doc_prob, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
+	errorCheck(cudaMemcpy(test_doc_prob, d_test_doc_prob, nSpatial*sizeof(float), cudaMemcpyDeviceToHost));
 	std::cerr << test_doc_prob[0] << '\n';
 
 	/* Testing stuff */
