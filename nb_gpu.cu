@@ -85,7 +85,7 @@ __global__ void test(float *term_class_matrix, float * doc_prob, int * doc_index
 		}
 	}
 	int max_index = 0;
-	float max = 0xff800000;
+	float max = 1.17549e-038;
 	for (int y = 0; y < classes; y++) {
 		if (doc_prob[classes * i + y] > max) {
 			max_index = y;
