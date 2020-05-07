@@ -396,8 +396,8 @@ int main(int argc, char **argv)
 	errorCheck(cudaMemcpy(predictions, d_predictions, nSpatial*sizeof(int), cudaMemcpyDeviceToHost));
 	std::cerr << "Size of predictions: " << sizeof(predictions)/sizeof(int) << std::endl;
 	std::cerr << "Size of tests: " << test_doc_index_vec.size() << std::endl;
-	ofstream results("./results.txt");
-	if(result.is_open()) {
+	std::ofstream results("./results.txt");
+	if(results.is_open()) {
 		for (int i = 0; i < test_doc_index_vec.size(); i++) {
 			results << classes_vec[predictions[i]] << '\n';
 		}
