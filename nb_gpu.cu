@@ -44,7 +44,7 @@ __global__ void calcTotalTermsPerClass(float * term_class_matrix, int * terms_pe
 	if (i < classes) {
 		int sum = 0;
 		for (int x = 0; x < num_terms; x++) {
-			sum += term_class_matrix[classes * x + i];
+			sum += (int)term_class_matrix[classes * x + i];
 		}
 		terms_per_class[i] = sum;
 	}
@@ -426,14 +426,34 @@ int main(int argc, char **argv)
 	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions, d_prior);
 
 	errorCheck(cudaMemcpy(predictions, d_predictions, nSpatial*sizeof(int), cudaMemcpyDeviceToHost));
-	std::cerr << "Size of predictions: " << sizeof(predictions)/sizeof(int) << std::endl;
-	std::cerr << "Size of tests: " << test_doc_index_vec.size() << std::endl;
+
 	std::ofstream results("./results.txt");
 	if(results.is_open()) {
 		for (int i = 0; i < test_doc_index_vec.size(); i++) {
 			results << classes_vec[predictions[i]] << '\n';
 		}
 	}
+
+	errorCheck(cudaMemcpy(term_class_matrix, d_term_class, nSpatial*sizeof(float), cudaMemcpyDeviceToHost));
+
+	std::ofstream debugfile("./prob_matrix.txt");
+
+	for(int c_idx = 0; c_idx < classes_vec.size(); c_idx++)
+		debugfile << classes_vec[c_idx] << " ";
+	debugfile << std::endl << std::endl;
+
+	for(int t_idx = 0; t_idx < term_vec.size(); t_idx++)
+	{
+		std::string term = term_vec[t_idx];
+		debugfile << term << "\t\t\t";
+		for(int c_idx = 0; c_idx < classes_vec.size(); c_idx++ )
+		{
+			float prob = *(term_class_matrix + (t_idx * classes_vec.size()) + c_idx);
+			debugfile << prob << " ";
+		}
+		debugfile << std::endl;
+	}
+	debugfile.close();
 
 	/* Testing stuff */
 	// std::cout << "There are " << term_vec.size() << " terms." << std::endl;
