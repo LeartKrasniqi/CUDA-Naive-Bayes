@@ -358,8 +358,13 @@ int main(int argc, char **argv)
 	float *d_prior;
 
 	/* Perform the timing */
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start); cudaEventCreate(&stop);
+	cudaEvent_t train_start, learn_start, test_start, train_stop, learn_stop, test_stop;
+	cudaEventCreate(&train_start);
+	cudaEventCreate(&train_stop);
+	cudaEventCreate(&learn_start);
+	cudaEventCreate(&learn_stop);
+	cudaEventCreate(&test_start);
+	cudaEventCreate(&test_stop);
 
 	cudaDeviceReset();
     cudaProfilerStart();
@@ -436,29 +441,30 @@ int main(int argc, char **argv)
 
 	// Learn
 	std::cerr << "Training Start";
-	cudaEventRecord(start, 0);
+	cudaEventRecord(train_start, 0);
 	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term_vec.size(), classes_vec.size());
 
 	nSpatial = classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
-	cudaEventRecord(stop, 0);
+	cudaEventRecord(train_stop, 0);
 	float t = 0;
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&t, start, stop);
+    cudaEventSynchronize(train_stop);
+    cudaEventElapsedTime(&t, train_start, train_stop);
 	std::cerr << "(" << t << " ms)" << std::endl;
 
 	nSpatial = term_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 
 	std::cerr << "Learning Start";
+	cudaEventRecord(learn_start, 0);
 
 	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
 
-	cudaEventRecord(stop, 0);
+	cudaEventRecord(learn_stop, 0);
 	t = 0;
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&t, start, stop);
+	cudaEventSynchronize(learn_stop);
+	cudaEventElapsedTime(&t, learn_start, learn_stop);
 	std::cerr << "(" << t << " ms)" << std::endl;
 
 	// Test
@@ -466,14 +472,13 @@ int main(int argc, char **argv)
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 
 	std::cerr << "Testing Start";
-	cudaEventRecord(start, 0);
-
+	cudaEventRecord(test_start, 0);
 	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions, d_prior);
 
-	cudaEventRecord(stop, 0);
+	cudaEventRecord(test_stop, 0);
 	t = 0;
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&t, start, stop);
+	cudaEventSynchronize(test_stop);
+	cudaEventElapsedTime(&t, test_start, test_stop);
 	std::cerr << "(" << t << " ms)" << std::endl;
 
 
