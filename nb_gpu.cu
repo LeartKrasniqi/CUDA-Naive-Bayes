@@ -8,6 +8,12 @@
 #include <algorithm>
 #include <cuda_profiler_api.h>
 #include <cuda_runtime.h>
+#include <chrono>
+
+#define timeNow() std::chrono::high_resolution_clock::now()
+#define duration(start, stop) std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count()
+
+typedef std::chrono::high_resolution_clock::time_point TimeVar;
 /*
  * Fills in the matrix term_class_matrix based on the frequency of terms. The term_index_arr
  * holds the indices for the doc_term_arr where each term starts. Increment frequency of
@@ -440,48 +446,42 @@ int main(int argc, char **argv)
 	errorCheck(cudaMalloc(&d_term_index, mSpatial));
 	errorCheck(cudaMemcpy(d_term_index, term_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
 
-	// Learn
-	std::cerr << "Training Start";
-	errorCheck(cudaEventRecord(train_start, 0));
+	std::cerr << "Started training... ";
+	TimeVar train_start = timeNow();
 	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term_vec.size(), classes_vec.size());
 
 	nSpatial = classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
-	errorCheck(cudaEventRecord(train_stop, 0));
-	float t = 0;
-    errorCheck(cudaEventSynchronize(train_stop));
-    errorCheck(cudaEventElapsedTime(&t, train_start, train_stop));
-	std::cerr << "(" << t << " ms)" << std::endl;
+	cudaDeviceSychronize();
+
+	TimeVar train_stop = timeNow();
+	std::cerr << "Done (" << duration(train_start, train_stop) << " ms)" << std::endl;
+
 
 	nSpatial = term_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 
-	std::cerr << "Learning Start";
-	errorCheck(cudaEventRecord(learn_start, 0));
+	std::cerr << "Started Learning... ";
+	TimeVar learn_start = timeNow();
 
 	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
+	cudaDeviceSychronize();
 
-	errorCheck(cudaEventRecord(learn_stop, 0));
-	t = 0;
-	errorCheck(cudaEventSynchronize(learn_stop));
-	errorCheck(cudaEventElapsedTime(&t, learn_start, learn_stop));
-	std::cerr << "(" << t << " ms)" << std::endl;
+	TimeVar learn_stop = timeNow();
+	std::cerr << "Done (" << duration(learn_stop - learn_start).count() << " ms)" << std::endl;
 
 	// Test
 	nSpatial = test_doc_index_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 
-	std::cerr << "Testing Start";
-	errorCheck(cudaEventRecord(test_start, 0));
+	std::cerr << "Started Testing... ";
+	TimeVar test_start = timeNow();
+
 	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions, d_prior);
 
-	errorCheck(cudaEventRecord(test_stop, 0));
-	t = 0;
-	errorCheck(cudaEventSynchronize(test_stop));
-	errorCheck(cudaEventElapsedTime(&t, test_start, test_stop));
-	std::cerr << "(" << t << " ms)" << std::endl;
-
+	TimeVar test_stop = timeNow();
+	std::cerr << "Done (" << duration(test_start, test_stop) << " ms)" << std::endl;
 
 
 	errorCheck(cudaMemcpy(predictions, d_predictions, nSpatial*sizeof(int), cudaMemcpyDeviceToHost));
@@ -491,4 +491,7 @@ int main(int argc, char **argv)
 			results << classes_vec[predictions[i]] << '\n';
 		}
 	}
+	cudaProfilerStop();
+    cudaDeviceReset();
+
 }
