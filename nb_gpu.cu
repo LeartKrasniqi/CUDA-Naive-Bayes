@@ -444,7 +444,7 @@ int main(int argc, char **argv)
 	nSpatial = classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
-	cudaDeviceSychronize();
+	cudaDeviceSynchronize();
 
 	TimeVar train_stop = timeNow();
 	std::cerr << "Done (" << duration(train_start, train_stop) << " ms)" << std::endl;
@@ -457,7 +457,7 @@ int main(int argc, char **argv)
 	TimeVar learn_start = timeNow();
 
 	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
-	cudaDeviceSychronize();
+	cudaDeviceSynchronize();
 
 	TimeVar learn_stop = timeNow();
 	std::cerr << "Done (" << duration(learn_start, learn_stop) << " ms)" << std::endl;
@@ -470,7 +470,7 @@ int main(int argc, char **argv)
 	TimeVar test_start = timeNow();
 
 	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions, d_prior);
-
+	cudaDeviceSynchronize();
 	TimeVar test_stop = timeNow();
 	std::cerr << "Done (" << duration(test_start, test_stop) << " ms)" << std::endl;
 
