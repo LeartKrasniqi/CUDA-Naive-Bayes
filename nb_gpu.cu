@@ -29,7 +29,7 @@ __global__ void calcFreq(int *term_index_arr, int *doc_term_arr, int *doc_class,
 	}
 
 	for (int x = start; x < end; x++) {
-		term_class_matrix[classes * i + doc_class[doc_term_arr[x] - 1]] += 1.0;
+		term_class_matrix[classes * i + doc_class[doc_term_arr[x]]] += 1.0;
 	}
 }
 
@@ -66,7 +66,7 @@ __global__ void learn(float * term_class_matrix, int num_docs, int classes, int 
 	}
 }
 
-__global__ void test(float *term_class_matrix, float * doc_prob, int * doc_index, int * terms_in_doc, int classes, int num_docs, int total_len_terms, int *predictions) {
+__global__ void test(float *term_class_matrix, float * doc_prob, int * doc_index, int * terms_in_doc, int classes, int num_docs, int total_len_terms, int *predictions, float *prior) {
 	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
@@ -87,7 +87,7 @@ __global__ void test(float *term_class_matrix, float * doc_prob, int * doc_index
 	int max_index = 0;
 	float max = -3.40282e+038;
 	for (int y = 0; y < classes; y++) {
-		if (doc_prob[classes * i + y] > max) {
+		if (doc_prob[classes * i + y] + log(prior[y]) > max) {
 			max_index = y;
 		}
 	}
@@ -197,6 +197,8 @@ int main(int argc, char **argv)
 	/* Vector to hold all the classes */
 	std::vector<std::string> classes_vec;
 
+	std::vector<float> prior_vec;
+
 	/* Loop through each document */
 	std::ifstream file(argv[1]);
 	std::string line;
@@ -215,10 +217,14 @@ int main(int argc, char **argv)
 
 		/* Append class to classes_vec, only if it has not been seen before */
 		std::vector<std::string>::iterator class_it = std::find(classes_vec.begin(), classes_vec.end(), doc_split[0]);
-        if(class_it == classes_vec.end())
-            classes_vec.push_back(doc_split[0]);
+        if(class_it == classes_vec.end()) {
+			classes_vec.push_back(doc_split[0]);
+			prior_vec.push_back(0.0);
+		}
 
-		doc_class.push_back(find(classes_vec.begin(), classes_vec.end(), doc_split[0]) - classes_vec.begin());
+		int class_index = find(classes_vec.begin(), classes_vec.end(), doc_split[0]) - classes_vec.begin();
+		doc_class.push_back(class_index);
+		prior_vec[class_index] += 1.0;
 
         /* Loop through each term in the document */
         for(int i = 1; i < doc_split.size(); i++)
@@ -239,6 +245,10 @@ int main(int argc, char **argv)
 			}
         }
 		lineno++;
+	}
+
+	for (int i = 0; i < classes_vec.size(); i++) {
+		prior_vec[i] /= doc_class.size();
 	}
 
 	/* Go through each term and populate the term_index_vec and doc_term_vec */
