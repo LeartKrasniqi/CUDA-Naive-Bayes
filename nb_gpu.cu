@@ -435,28 +435,37 @@ int main(int argc, char **argv)
 	errorCheck(cudaMemcpy(d_term_index, term_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
 
 	// Learn
-	std::cout << "Training Start";
+	std::cerr << "Training Start";
 	cudaEventRecord(start, 0);
 	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term_vec.size(), classes_vec.size());
 
 	nSpatial = classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
-
-	nSpatial = term_vec.size();
-	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
 	cudaEventRecord(stop, 0);
 	float t = 0;
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&t, start, stop);
-	std::cout << "(" << t << " ms)" << std::endl;
+	std::cerr << "(" << t << " ms)" << std::endl;
+
+	nSpatial = term_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+
+	std::cerr << "Learning Start";
+
+	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
+
+	cudaEventRecord(stop, 0);
+	t = 0;
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&t, start, stop);
+	std::cerr << "(" << t << " ms)" << std::endl;
 
 	// Test
 	nSpatial = test_doc_index_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 
-	std::cout << "Testing Start";
+	std::cerr << "Testing Start";
 	cudaEventRecord(start, 0);
 
 	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions, d_prior);
@@ -465,7 +474,7 @@ int main(int argc, char **argv)
 	t = 0;
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&t, start, stop);
-	std::cout << "(" << t << " ms)" << std::endl;
+	std::cerr << "(" << t << " ms)" << std::endl;
 
 
 
