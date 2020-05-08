@@ -160,6 +160,20 @@ int * vecToArr(std::vector<int> v)
 	return arr;
 }
 
+float * vecToArrfloat(std::vector<float> v)
+{
+	float *arr = (float *)malloc(v.size() * sizeof(float));
+	if(arr == NULL)
+	{
+		std::cerr << "Error converting vector to array" << std::endl;
+		exit(-1);
+	}
+
+	std::copy(v.begin(), v.end(), arr);
+
+	return arr;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -370,7 +384,7 @@ int main(int argc, char **argv)
 	// Test
 	int *test_doc_index_arr = vecToArr(test_doc_index_vec);
 	int *test_term_doc_arr = vecToArr(test_term_doc_vec);
-	float *prior_arr = vecToArr(prior_vec);
+	float *prior_arr = vecToArrfloat(prior_vec);
 
 	int *predictions = (int *) calloc(test_doc_index_vec.size(), sizeof(int));
 
