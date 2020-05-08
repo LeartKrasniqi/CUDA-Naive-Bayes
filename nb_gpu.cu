@@ -370,6 +370,7 @@ int main(int argc, char **argv)
 	// Test
 	int *test_doc_index_arr = vecToArr(test_doc_index_vec);
 	int *test_term_doc_arr = vecToArr(test_term_doc_vec);
+	float *prior_arr = vecToArr(prior_vec);
 
 	int *predictions = (int *) calloc(test_doc_index_vec.size(), sizeof(int));
 
@@ -379,6 +380,13 @@ int main(int argc, char **argv)
 	int *d_test_doc_index;
 	int *d_test_term_doc;
 	int *d_predictions;
+	float *d_prior;
+
+	nSpatial = classes_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(float);
+	errorCheck(cudaMalloc(&d_prior, mSpatial));
+	errorCheck(cudaMemcpy(d_prior, prior_arr, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
 
 	nSpatial = test_doc_index_vec.size() * classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
@@ -401,7 +409,7 @@ int main(int argc, char **argv)
 	errorCheck(cudaMalloc(&d_predictions, mSpatial));
 	errorCheck(cudaMemcpy(d_predictions, predictions, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
 
-	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions);
+	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions, d_prior);
 
 	errorCheck(cudaMemcpy(predictions, d_predictions, nSpatial*sizeof(int), cudaMemcpyDeviceToHost));
 	std::cerr << "Size of predictions: " << sizeof(predictions)/sizeof(int) << std::endl;
