@@ -59,9 +59,10 @@ __global__ void learn(float * term_class_matrix, int num_docs, int classes, int 
 	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
+	float k = 0.3;
 	if (i < num_terms) {
 		for (int x = 0; x < classes; x++) {
-			term_class_matrix[classes * i + x] /= terms_per_class[x];
+			term_class_matrix[classes * i + x] = logf((term_class_matrix[classes * i + x] + k)/(terms_per_class[x] + k*num_terms));
 		}
 	}
 }
@@ -79,16 +80,19 @@ __global__ void test(float *term_class_matrix, float * doc_prob, int * doc_index
 	} else {
 		return ;
 	}
+
 	for (int x = start_term; x < end_term; x++) {
 		for (int y = 0; y < classes; y++) {
-			doc_prob[classes * i + y] += log(term_class_matrix[classes * x + y]);
+			doc_prob[classes * i + y] += term_class_matrix[classes * terms_in_doc[x] + y];
 		}
 	}
+
 	int max_index = 0;
-	float max = -3.40282e+038;
+	float max = logf(0.0);
 	for (int y = 0; y < classes; y++) {
-		if (doc_prob[classes * i + y] + log(prior[y]) > max) {
+		if (doc_prob[classes * i + y] + logf(prior[y]) > max) {
 			max_index = y;
+			max = doc_prob[classes * i + y] + logf(prior[y]);
 		}
 	}
 	predictions[i] = max_index;
@@ -433,32 +437,4 @@ int main(int argc, char **argv)
 			results << classes_vec[predictions[i]] << '\n';
 		}
 	}
-
-	errorCheck(cudaMemcpy(term_class_matrix, d_term_class, nSpatial*sizeof(float), cudaMemcpyDeviceToHost));
-
-	std::ofstream debugfile("./prob_matrix.txt");
-
-	for(int c_idx = 0; c_idx < classes_vec.size(); c_idx++)
-		debugfile << classes_vec[c_idx] << " ";
-	debugfile << std::endl << std::endl;
-
-	for(int t_idx = 0; t_idx < term_vec.size(); t_idx++)
-	{
-		std::string term = term_vec[t_idx];
-		debugfile << term << "\t\t\t";
-		for(int c_idx = 0; c_idx < classes_vec.size(); c_idx++ )
-		{
-			float prob = *(term_class_matrix + (t_idx * classes_vec.size()) + c_idx);
-			debugfile << prob << " ";
-		}
-		debugfile << std::endl;
-	}
-	debugfile.close();
-
-	/* Testing stuff */
-	// std::cout << "There are " << term_vec.size() << " terms." << std::endl;
-	// std::cout << "There are " << lineno << " docs." << std::endl;
-	// std::cout << "There are " << classes_vec.size() << " classes." << std::endl;
-
-
 }

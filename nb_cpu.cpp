@@ -5,7 +5,7 @@
 #define timeNow() std::chrono::high_resolution_clock::now()
 #define duration(start, stop) std::chrono::duration_cast<std::chrono::seconds>(stop - start).count()
 
-typedef std::chrono::high_resolution_clock::time_point TimeVar;    
+typedef std::chrono::high_resolution_clock::time_point TimeVar;
 
 int main(int argc, char **argv)
 {
@@ -15,15 +15,15 @@ int main(int argc, char **argv)
 		exit(-1);
 	}
 
-	std::string train_filename = argv[1]; 
+	std::string train_filename = argv[1];
 	std::string test_filename = argv[2];
 	std::string output_filename = argv[3];
 
 
 
 	/*
-	********************** 
-	       Training 
+	**********************
+	       Training
 	**********************
 	*/
 	/* Holds the number of training docs (Will be incremented in train() and usable in other functions) */
@@ -31,26 +31,26 @@ int main(int argc, char **argv)
 
 	/* Store training terms in a vector */
 	std::vector<std::string> term_vec;
-	
+
 	/* Store classes in a vector */
 	std::vector<std::string> classes_vec;
 
 	/* Map of term to class_list map so we can count the number of times the term is in the class */
 	std::map<std::string, std::map<std::string, int> > term_class_freq_map;
 
-	/* 
-		Map of class to num_docs,num_terms 
+	/*
+		Map of class to num_docs,num_terms
 		num_docs = number of docs of a certain class ([0])
 		num_terms = number of terms in the class ([1])
 	*/
-	std::map<std::string, std::vector<int> > class_info_map;  
+	std::map<std::string, std::vector<int> > class_info_map;
 
 	std::cerr << "Started training... ";
 	TimeVar train_start = timeNow();
 
 	/* Perform the training (which will update all the vectors) */
 	train(train_filename, num_training_docs, term_vec, classes_vec, term_class_freq_map, class_info_map);
-	
+
 	TimeVar train_stop = timeNow();
 	std::cerr << "Done (" << duration(train_start, train_stop) << " s)" << std::endl;
 
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 	float *prob_matrix = learn(term_vec, classes_vec, term_class_freq_map, class_info_map);
 	TimeVar learn_stop = timeNow();
 	std::cerr << "Done (" << std::chrono::duration_cast<std::chrono::milliseconds>(learn_stop - learn_start).count() << " ms)" << std::endl;
-	
+
 
 
 	/*
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 	       Testing
 	*********************
 	*/
-	std::cerr << "Started Testing... "; 
+	std::cerr << "Started Testing... ";
 	TimeVar test_start = timeNow();
 	std::vector<int> results = test(test_filename, num_training_docs, prob_matrix, term_vec, classes_vec, class_info_map);
 	TimeVar test_stop = timeNow();
@@ -130,9 +130,3 @@ int main(int argc, char **argv)
 	#endif
 
 }
-
-
-
-
-
-
