@@ -342,50 +342,7 @@ int main(int argc, char **argv)
 	int *d_doc_class;
 	int *d_total_terms_class;
 
-	cudaDeviceReset();
-    cudaProfilerStart();
-
-
-	nSpatial = doc_term_vec.size();
-	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
-	errorCheck(cudaMalloc(&d_doc_term, mSpatial));
-	errorCheck(cudaMemcpy(d_doc_term, doc_term_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
-
-	nSpatial = doc_class.size();
-	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
-	errorCheck(cudaMalloc(&d_doc_class, mSpatial));
-	errorCheck(cudaMemcpy(d_doc_class, doc_class_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
-
-	nSpatial = term_vec.size() * classes_vec.size();
-	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(float);
-	errorCheck(cudaMalloc(&d_term_class, mSpatial));
-	errorCheck(cudaMemcpy(d_term_class, term_class_matrix, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
-
-	nSpatial = term_index_vec.size();
-	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
-	errorCheck(cudaMalloc(&d_term_index, mSpatial));
-	errorCheck(cudaMemcpy(d_term_index, term_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
-
-	// Learn
-	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term_vec.size(), classes_vec.size());
-
-	nSpatial = classes_vec.size();
-	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
-	errorCheck(cudaMalloc(&d_total_terms_class, mSpatial));
-	errorCheck(cudaMemcpy(d_total_terms_class, total_terms_class_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
-
-	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
-
-	nSpatial = term_vec.size();
-	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
-	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
-
-	// Test
+	// Test Device Arrays
 	int *test_doc_index_arr = vecToArr(test_doc_index_vec);
 	int *test_term_doc_arr = vecToArr(test_term_doc_vec);
 	float *prior_arr = vecToArrfloat(prior_vec);
@@ -400,37 +357,119 @@ int main(int argc, char **argv)
 	int *d_predictions;
 	float *d_prior;
 
+	/* Perform the timing */
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start); cudaEventCreate(&stop);
+
+	cudaDeviceReset();
+    cudaProfilerStart();
+
+	/* Allocation of Device Memory */
+
+	// Document Term Vector
+	nSpatial = doc_term_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_doc_term, mSpatial));
+	errorCheck(cudaMemcpy(d_doc_term, doc_term_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	// Training Document Classes
+	nSpatial = doc_class.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_doc_class, mSpatial));
+	errorCheck(cudaMemcpy(d_doc_class, doc_class_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	// Probability Matrix
+	nSpatial = term_vec.size() * classes_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(float);
+	errorCheck(cudaMalloc(&d_term_class, mSpatial));
+	errorCheck(cudaMemcpy(d_term_class, term_class_matrix, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
+
+	// Allocation of Arrays based on class size
 	nSpatial = classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+
+	// Total terms valid in each class
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+	errorCheck(cudaMalloc(&d_total_terms_class, mSpatial));
+	errorCheck(cudaMemcpy(d_total_terms_class, total_terms_class_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	// Prior Probability for each class
 	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(float);
 	errorCheck(cudaMalloc(&d_prior, mSpatial));
 	errorCheck(cudaMemcpy(d_prior, prior_arr, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
 
+	// Test Documents' Probability for each class
 	nSpatial = test_doc_index_vec.size() * classes_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(float);
 	errorCheck(cudaMalloc(&d_test_doc_prob, mSpatial));
 	errorCheck(cudaMemcpy(d_test_doc_prob, test_doc_prob, nSpatial*sizeof(float), cudaMemcpyHostToDevice));
 
+	// Allocation based on number of Test Documents
+	nSpatial = test_doc_index_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
+
+	// Array where each element represents where in the array the document's terms start in test_term_doc_arr
+	errorCheck(cudaMalloc(&d_test_doc_index, mSpatial));
+	errorCheck(cudaMemcpy(d_test_doc_index, test_doc_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	// Holds the prediction for each test document
+	errorCheck(cudaMalloc(&d_predictions, mSpatial));
+	errorCheck(cudaMemcpy(d_predictions, predictions, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+
+	//
 	nSpatial = test_term_doc_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
 	errorCheck(cudaMalloc(&d_test_term_doc, mSpatial));
 	errorCheck(cudaMemcpy(d_test_term_doc, test_term_doc_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
 
-	nSpatial = test_doc_index_vec.size();
+	nSpatial = term_index_vec.size();
 	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
 	mSpatial = spatialBlocks.x * spatialBlocks.y * spatialBlocks.z * spatialThreadsPerBlock.x * sizeof(int);
-	errorCheck(cudaMalloc(&d_test_doc_index, mSpatial));
-	errorCheck(cudaMemcpy(d_test_doc_index, test_doc_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+	errorCheck(cudaMalloc(&d_term_index, mSpatial));
+	errorCheck(cudaMemcpy(d_term_index, term_index_arr, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
 
-	errorCheck(cudaMalloc(&d_predictions, mSpatial));
-	errorCheck(cudaMemcpy(d_predictions, predictions, nSpatial*sizeof(int), cudaMemcpyHostToDevice));
+	// Learn
+	std::cout << "Training Start";
+	cudaEventRecord(start, 0);
+	calcFreq<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_index, d_doc_term, d_doc_class, d_term_class, term_vec.size(), doc_term_vec.size(), classes_vec.size());
+
+	nSpatial = classes_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	calcTotalTermsPerClass<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_total_terms_class, term_vec.size(), classes_vec.size());
+
+	nSpatial = term_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+	learn<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, doc_class.size(), classes_vec.size(), d_total_terms_class, term_vec.size());
+	cudaEventRecord(stop, 0);
+	float t = 0;
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&t, start, stop);
+	std::cout << "(" << t << " ms)" << std::endl;
+
+	// Test
+	nSpatial = test_doc_index_vec.size();
+	errorCheck(numBlocksThreads(nSpatial, &spatialBlocks, &spatialThreadsPerBlock));
+
+	std::cout << "Testing Start";
+	cudaEventRecord(start, 0);
 
 	test<<<spatialBlocks, spatialThreadsPerBlock>>>(d_term_class, d_test_doc_prob, d_test_doc_index, d_test_term_doc, classes_vec.size(), test_doc_index_vec.size(), test_term_doc_vec.size(), d_predictions, d_prior);
 
-	errorCheck(cudaMemcpy(predictions, d_predictions, nSpatial*sizeof(int), cudaMemcpyDeviceToHost));
+	cudaEventRecord(stop, 0);
+	t = 0;
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&t, start, stop);
+	std::cout << "(" << t << " ms)" << std::endl;
 
+
+
+	errorCheck(cudaMemcpy(predictions, d_predictions, nSpatial*sizeof(int), cudaMemcpyDeviceToHost));
 	std::ofstream results("./results.txt");
 	if(results.is_open()) {
 		for (int i = 0; i < test_doc_index_vec.size(); i++) {
