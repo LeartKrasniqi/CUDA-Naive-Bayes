@@ -364,15 +364,6 @@ int main(int argc, char **argv)
 	int *d_predictions;
 	float *d_prior;
 
-	/* Perform the timing */
-	cudaEvent_t train_start, learn_start, test_start, train_stop, learn_stop, test_stop;
-	cudaEventCreate(&train_start);
-	cudaEventCreate(&train_stop);
-	cudaEventCreate(&learn_start);
-	cudaEventCreate(&learn_stop);
-	cudaEventCreate(&test_start);
-	cudaEventCreate(&test_stop);
-
 	cudaDeviceReset();
     cudaProfilerStart();
 
