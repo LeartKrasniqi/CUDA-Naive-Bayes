@@ -188,9 +188,9 @@ float * vecToArrfloat(std::vector<float> v)
 
 int main(int argc, char **argv)
 {
-	if(argc != 3)
+	if(argc != 4)
 	{
-		std::cerr << "Usage: " << argv[0] << " [train_file] [test_file]" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " [train_file] [test_file] [output_file]" << std::endl;
 		exit(-1);
 	}
 
@@ -365,7 +365,7 @@ int main(int argc, char **argv)
 	float *d_prior;
 
 	cudaDeviceReset();
-    cudaProfilerStart();
+  cudaProfilerStart();
 
 	/* Allocation of Device Memory */
 
@@ -474,15 +474,14 @@ int main(int argc, char **argv)
 	TimeVar test_stop = timeNow();
 	std::cerr << "Done (" << duration(test_start, test_stop) << " ms)" << std::endl;
 
-
 	errorCheck(cudaMemcpy(predictions, d_predictions, nSpatial*sizeof(int), cudaMemcpyDeviceToHost));
-	std::ofstream results("./results.txt");
+	std::ofstream results(argv[3]);
 	if(results.is_open()) {
 		for (int i = 0; i < test_doc_index_vec.size(); i++) {
 			results << classes_vec[predictions[i]] << '\n';
 		}
 	}
 	cudaProfilerStop();
-    cudaDeviceReset();
+  cudaDeviceReset();
 
 }
