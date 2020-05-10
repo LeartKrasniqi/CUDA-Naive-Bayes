@@ -1,0 +1,5 @@
+﻿GPU,,,,,CPU,,,
+Dataset,Macro F1,Micro F1,Accuracy,,Dataset,Macro F1,Micro F1,Accuracy
+r8,0.899,0.964,0.964,,r8,0.813,0.884,0.884
+webkb,0.863,0.871,0.871,,webkb,0.823,0.830,0.830
+20ng,,,,,20ng,0.808,0.806,0.806
