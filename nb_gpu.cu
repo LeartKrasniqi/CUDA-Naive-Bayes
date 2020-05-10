@@ -66,7 +66,7 @@ __global__ void learn(float * term_class_matrix, int num_docs, int classes, int 
 	unsigned int i = blockIdx.x * gridDim.y * gridDim.z *
                       blockDim.x + blockIdx.y * gridDim.z *
                       blockDim.x + blockIdx.z * blockDim.x + threadIdx.x;
-	float k = 0.3;
+	float k = 1.0;
 	if (i < num_terms) {
 		for (int x = 0; x < classes; x++) {
 			term_class_matrix[classes * i + x] = logf((term_class_matrix[classes * i + x] + k)/(terms_per_class[x] + k*num_terms));
