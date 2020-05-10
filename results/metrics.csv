@@ -1,5 +1,5 @@
 ﻿GPU,,,,CPU,,
-Dataset,Micro F1,Macro F1,,Dataset,Micro F1,Macro F1,
+Dataset,Micro F1,Macro F1,,Dataset,Micro F1,Macro F1
 20ng,0.801408,0.807247,,20ng,0.806190,0.807518
 r8,0.939698,0.787382,,r8,0.883965,0.812531
 webkb,0.863897,0.852193,,webkb,0.830229,0.823214
