@@ -10,6 +10,8 @@ git
 
 We suggest having this repo cloned on both the cross-compile machine and the target machine.  That way you have access to the relevant datasets and metric scripts.
 
+**Note:** If you do not have `openMP`, you can remove the flag in the `CXXFLAGS` variable in the Makefile.
+
 ## GPU Usage
 1. Run on the cross-compile machine:
 ```bash
