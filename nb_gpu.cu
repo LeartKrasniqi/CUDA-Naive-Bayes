@@ -460,7 +460,8 @@ int main(int argc, char **argv)
 	cudaDeviceSynchronize();
 
 	TimeVar learn_stop = timeNow();
-	std::cerr << "Done (" << duration(learn_start, learn_stop) << " ms)" << std::endl;
+	std::cerr << "Done (" << std::chrono::duration_cast<std::chrono::microseconds>(learn_stop - learn_start).count() << " us)" <<std::endl;
+ 
 
 	// Test
 	nSpatial = test_doc_index_vec.size();
